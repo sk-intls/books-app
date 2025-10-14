@@ -8,6 +8,7 @@ interface Writer<T> {
 interface Reader<T> {
   find(item: Partial<T>): Promise<T[]>;
   findOne(id: string | number): Promise<T>;
+  findOneBy(criteria: Partial<T>): Promise<T | undefined>;
 }
 
 type BaseRepository<T> = Writer<T> & Reader<T>;
@@ -47,5 +48,9 @@ export abstract class Repository<T> implements BaseRepository<T> {
 
   findOne(id: string | number): Promise<T> {
     return this.qb.where({ id }).first();
+  }
+
+  findOneBy(criteria: Partial<T>): Promise<T | undefined> {
+    return this.qb.where(criteria).first();
   }
 }

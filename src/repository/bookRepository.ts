@@ -15,12 +15,12 @@ export class BookRepository extends Repository<Book> {
         "users.id as user_id",
         "users.username",
         "users.first_name",
-        "users.last_name"
+        "users.last_name",
       ])
       .join("users", "books.user_id", "users.id")
       .where("books.author", "ilike", `%${authorName}%`)
-      .then(rows => 
-        rows.map(row => ({
+      .then((rows) =>
+        rows.map((row) => ({
           id: row.id,
           title: row.title,
           author: row.author,
@@ -31,8 +31,8 @@ export class BookRepository extends Repository<Book> {
             id: row.user_id,
             username: row.username,
             first_name: row.first_name,
-            last_name: row.last_name
-          }
+            last_name: row.last_name,
+          },
         }))
       );
   }
@@ -48,25 +48,84 @@ export class BookRepository extends Repository<Book> {
     return this.db
       .select([
         "users.id",
-        "users.username", 
+        "users.username",
         "users.first_name",
         "users.last_name",
-        this.db.raw("COUNT(books.id) as book_count")
+        this.db.raw("COUNT(books.id) as book_count"),
       ])
       .from("users")
       .join("books", "users.id", "books.user_id")
       .where("books.author", "ilike", `%${authorName}%`)
-      .groupBy("users.id", "users.username", "users.first_name", "users.last_name")
+      .groupBy(
+        "users.id",
+        "users.username",
+        "users.first_name",
+        "users.last_name"
+      )
       .orderBy("book_count", "desc");
   }
 
-  async updateAuthorName(oldAuthor: string, newAuthor: string): Promise<number> {
-    return this.qb
-      .where("author", "ilike", oldAuthor)
-      .update({ 
-        author: newAuthor,
-        updated_at: new Date()
-      });
+  async findUsersByTitle(bookTitle: string): Promise<any[]> {
+    return this.db
+      .select([
+        "users.id",
+        "users.username",
+        "users.first_name",
+        "users.last_name",
+        this.db.raw("COUNT(books.id) as book_count"),
+      ])
+      .from("users")
+      .join("books", "users.id", "books.user_id")
+      .where("books.title", "ilike", `%${bookTitle}%`)
+      .groupBy(
+        "users.id",
+        "users.username",
+        "users.first_name",
+        "users.last_name"
+      )
+      .orderBy("book_count", "desc");
+  }
+
+  async findUsersByTitleAndAuthor(bookTitle: string, authorName: string): Promise<any[]> {
+    return this.db
+      .select([
+        "users.id",
+        "users.username",
+        "users.first_name",
+        "users.last_name",
+        this.db.raw("COUNT(books.id) as book_count"),
+      ])
+      .from("users")
+      .join("books", "users.id", "books.user_id")
+      .where("books.title", "ilike", `%${bookTitle}%`)
+      .andWhere("books.author", "ilike", `%${authorName}%`)
+      .groupBy(
+        "users.id",
+        "users.username",
+        "users.first_name",
+        "users.last_name"
+      )
+      .orderBy("book_count", "desc");
+  }
+
+  async updateAuthorName(
+    oldAuthor: string,
+    newAuthor: string
+  ): Promise<number> {
+    return this.qb.where("author", "ilike", oldAuthor).update({
+      author: newAuthor,
+      updated_at: new Date(),
+    });
+  }
+
+  async updateBookOwner(
+    bookId: number,
+    newOwner: number | null
+  ): Promise<number> {
+    return await this.qb.where({ id: bookId }).update({
+      user_id: newOwner,
+      updated_at: new Date(),
+    });
   }
 
   async findByIdWithUser(bookId: number): Promise<BookWithUser | undefined> {
@@ -75,10 +134,10 @@ export class BookRepository extends Repository<Book> {
         "books.*",
         "users.id as owner_id",
         "users.username",
-        "users.first_name", 
-        "users.last_name"
+        "users.first_name",
+        "users.last_name",
       ])
-      .join("users", "books.user_id", "users.id")
+      .leftJoin("users", "books.user_id", "users.id")
       .where("books.id", bookId)
       .first();
 
@@ -95,28 +154,28 @@ export class BookRepository extends Repository<Book> {
         id: rows.owner_id,
         username: rows.username,
         first_name: rows.first_name,
-        last_name: rows.last_name
-      }
+        last_name: rows.last_name,
+      },
     };
   }
 
   async isBookOwnedByUser(bookId: number, userId: number): Promise<boolean> {
-    const result = await this.qb
-      .where({ id: bookId, user_id: userId })
-      .first();
+    const result = await this.qb.where({ id: bookId, user_id: userId }).first();
     return !!result;
   }
 
-  async getBookCountByAuthor(): Promise<Array<{author: string, count: number}>> {
+  async getBookCountByAuthor(): Promise<
+    Array<{ author: string; count: number }>
+  > {
     return this.qb
       .select("author")
       .count("* as count")
       .groupBy("author")
       .orderBy("count", "desc")
-      .then(rows => 
-        rows.map(row => ({
+      .then((rows) =>
+        rows.map((row) => ({
           author: row.author,
-          count: parseInt(row.count as string)
+          count: parseInt(row.count as string),
         }))
       );
   }

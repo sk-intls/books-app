@@ -4,7 +4,7 @@ export const bookSchema = z.object({
   id: z.number().int().positive().optional(),
   title: z.string().min(1, "Title is required").max(500, "Title too long"),
   author: z.string().min(1, "Author is required").max(255, "Author name too long"),
-  user_id: z.number().int().positive().optional(),
+  user_id: z.number().int().positive().nullable().optional(),
 });
 
 export const createBookSchema = z.object({

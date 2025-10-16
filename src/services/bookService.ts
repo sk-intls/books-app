@@ -1,62 +1,43 @@
-import { Book, CreateBookData } from "../models/bookSchema";
-import { User } from "../models/userSchema";
+import { Book } from "../models/bookSchema";
 import { BookRepository } from "../repository/bookRepository";
-import { UserRepository } from "../repository/userRepository";
+import { AuthorRepository } from "../repository/authorRepository";
+import { UserBookRepository } from "../repository/userBookRepository";
 
 interface BookResult {
   success: boolean;
   book?: Book;
   error?: string;
-}
-
-interface UsersResult {
-  success: boolean;
-  users?: any[];
-  error?: string;
+  message?: string;
 }
 
 export class BookService {
   constructor(
     private bookRepository: BookRepository,
-    private userRepository: UserRepository
+    private authorRepository: AuthorRepository,
+    private userBookRepository: UserBookRepository
   ) {}
 
-  async addNewBook(
-    bookData: CreateBookData,
-    userId?: number
-  ): Promise<BookResult> {
+  async addBook(bookData: {
+    title: string;
+    authorName: string;
+  }): Promise<BookResult> {
     try {
-      // If adding to catalog (no user)
-      if (!userId) {
-        const existingCatalogBook = await this.bookRepository.findOneBy({
-          title: bookData.title,
-          author: bookData.author,
-          user_id: null, // Only check unowned books
-        });
+      const author = await this.authorRepository.findOrCreate({
+        name: bookData.authorName,
+      });
 
-        if (existingCatalogBook) {
-          return { success: false, error: "Book already exists in catalog" };
-        }
-      }
-      // If adding to catalog and assign to a user
-      else {
-        const usersWithThisBook =
-          await this.bookRepository.findUsersByTitleAndAuthor(
-            bookData.title,
-            bookData.author
-          );
-        const userHasThisBook = usersWithThisBook.some(
-          (user) => user.id === userId
-        );
+      const existingBooks = await this.bookRepository.searchBooks({
+        title: bookData.title,
+        authorId: author.id,
+      });
 
-        if (userHasThisBook) {
-          return { success: false, error: "You already own this book" };
-        }
+      if (existingBooks.length > 0) {
+        return { success: false, error: "Book already exists in catalog" };
       }
 
       const newBook = await this.bookRepository.create({
-        ...bookData,
-        user_id: userId || null,
+        title: bookData.title,
+        author_id: author.id!,
       });
 
       return {
@@ -68,170 +49,126 @@ export class BookService {
     }
   }
 
-  async getBookHolder(bookId: number): Promise<User | null> {
+  async removeBook(bookData: {
+    title: string;
+    authorName: string;
+  }): Promise<BookResult> {
     try {
-      const bookWithUser = await this.bookRepository.findByIdWithUser(bookId);
+      const author = await this.authorRepository.findOneBy({
+        name: bookData.authorName,
+      });
 
-      if (!bookWithUser) {
-        throw new Error("Book not found");
+      if (!author || !author.id) {
+        return { success: false, error: "Author not found in catalog" };
       }
 
-      if (!bookWithUser.user_id) {
-        return null;
+      const [book] = await this.bookRepository.searchBooks({
+        title: bookData.title,
+        authorId: author.id,
+      });
+
+      if (!book || !book.id) {
+        return { success: false, error: "Book not found in catalog" };
       }
 
-      if (bookWithUser.user) {
-        return {
-          id: bookWithUser.user.id,
-          username: bookWithUser.user.username,
-          first_name: bookWithUser.user.first_name,
-          last_name: bookWithUser.user.last_name,
-        } as User;
-      }
+      const owners = await this.userBookRepository.getBookOwners(book.id);
 
-      // Fallback: separate query if join didn't work
-      const user = await this.userRepository.findOne(bookWithUser.user_id);
-      return user || null;
-    } catch (error) {
-      throw new Error("Failed to check the ownership");
-    }
-  }
-
-  async addBookToUser(
-    bookId: number,
-    userId: number
-  ): Promise<Book | undefined> {
-    return this.updateBookOwnership(bookId, userId, "add");
-  }
-
-  async removeBookFromUser(
-    bookId: number,
-    userId: number
-  ): Promise<Book | undefined> {
-    return this.updateBookOwnership(bookId, userId, "remove");
-  }
-
-  async findUsersByAuthor(authorName: string): Promise<UsersResult> {
-    return this.findUsersByBookCriteria({ author: authorName });
-  }
-
-  async findUsersByTitle(bookTitle: string): Promise<UsersResult> {
-    return this.findUsersByBookCriteria({ title: bookTitle });
-  }
-
-  async findUsersByBook(
-    bookTitle: string,
-    authorName: string
-  ): Promise<UsersResult> {
-    return this.findUsersByBookCriteria({
-      title: bookTitle,
-      author: authorName,
-    });
-  }
-
-
-  private async validateBookExists(bookId: number): Promise<Book> {
-    const existingBook = await this.bookRepository.findOneBy({ id: bookId });
-    if (!existingBook || !existingBook.id) {
-      throw new Error("Book not found");
-    }
-    return existingBook;
-  }
-
-  private async validateBookAndUser(
-    bookId: number,
-    userId: number
-  ): Promise<{ book: Book; user: User }> {
-    const existingBook = await this.bookRepository.findOneBy({ id: bookId });
-    const existingUser = await this.userRepository.findOneBy({ id: userId });
-
-    if (
-      !existingBook ||
-      !existingUser ||
-      !existingBook.id ||
-      !existingUser.id
-    ) {
-      throw new Error("No such book or user");
-    }
-
-    return { book: existingBook, user: existingUser };
-  }
-
-  private async updateBookOwnership(
-    bookId: number,
-    userId: number,
-    action: "add" | "remove"
-  ): Promise<Book | undefined> {
-    try {
-      const { book, user } = await this.validateBookAndUser(bookId, userId);
-
-      const isBookOwnedByUser = await this.bookRepository.isBookOwnedByUser(
-        bookId,
-        userId
-      );
-
-      if (action === "add" && isBookOwnedByUser) {
-        throw new Error("Book already owned by user");
-      }
-      if (action === "remove" && !isBookOwnedByUser) {
-        throw new Error("Book is not owned by user");
-      }
-
-      const newOwner = action === "add" ? user.id! : null;
-      await this.bookRepository.updateBookOwner(book.id!, newOwner);
-      return await this.bookRepository.findOne(book.id!);
-    } catch (error) {
-      const actionText =
-        action === "add" ? "assign book to" : "remove book from";
-      throw new Error(`Could not ${actionText} user`);
-    }
-  }
-
-  private async findUsersByBookCriteria(criteria: {
-    title?: string;
-    author?: string;
-  }): Promise<UsersResult> {
-    try {
-      if (!criteria.title && !criteria.author) {
+      if (owners.length > 0) {
         return {
           success: false,
-          error: "Must provide either title, author, or both",
+          error: `Cannot remove book: ${owners.length} user(s) own this book`,
         };
       }
 
-      let users: any[];
-      let searchDescription: string;
-
-      if (criteria.title && criteria.author) {
-        users = await this.bookRepository.findUsersByTitleAndAuthor(
-          criteria.title,
-          criteria.author
-        );
-        searchDescription = `"${criteria.title}" by ${criteria.author}`;
-      } else if (criteria.title) {
-        users = await this.bookRepository.findUsersByTitle(criteria.title);
-        searchDescription = `"${criteria.title}"`;
-      } else {
-        users = await this.bookRepository.findUsersByAuthor(criteria.author!);
-        searchDescription = `books by ${criteria.author}`;
-      }
+      await this.bookRepository.delete(book.id);
 
       return {
         success: true,
-        users,
+        book,
+        message: "Book successfully removed from catalog",
       };
     } catch (error) {
-      const searchDescription =
-        criteria.title && criteria.author
-          ? `"${criteria.title}" by ${criteria.author}`
-          : criteria.title
-          ? `"${criteria.title}"`
-          : `books by ${criteria.author}`;
+      return { success: false, error: "Failed to remove book" };
+    }
+  }
 
+  async updateBook(
+    bookId: number,
+    updateData: {
+      title?: string;
+      authorName?: string;
+    }
+  ): Promise<BookResult> {
+    try {
+      const book = await this.bookRepository.findOne(bookId);
+      if (!book) {
+        return { success: false, error: "Book not found" };
+      }
+
+      const updateFields: any = {};
+
+      if (updateData.title !== undefined) {
+        updateFields.title = updateData.title;
+      }
+
+      if (updateData.authorName !== undefined) {
+        const author = await this.authorRepository.findOrCreate({
+          name: updateData.authorName,
+        });
+        updateFields.author_id = author.id;
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        return { success: false, error: "No fields provided to update" };
+      }
+
+      const updatedRows = await this.bookRepository.update(
+        bookId,
+        updateFields
+      );
+
+      if (!updatedRows) {
+        return { success: false, error: "Failed to update book" };
+      }
+
+      const updatedBook = await this.bookRepository.findOne(bookId);
       return {
-        success: false,
-        error: `Failed to find users with ${searchDescription}`,
+        success: true,
+        book: updatedBook,
+        message: "Book successfully updated",
       };
+    } catch (error) {
+      return { success: false, error: "Failed to update book" };
+    }
+  }
+
+  async searchBooks(criteria?: {
+    title?: string;
+    authorName?: string;
+  }): Promise<BookResult & { books?: Book[] }> {
+    try {
+      let searchCriteria: any = { includeAuthor: true };
+
+      if (criteria?.title) {
+        searchCriteria.title = criteria.title;
+      }
+
+      if (criteria?.authorName) {
+        const author = await this.authorRepository.findOneBy({
+          name: criteria.authorName,
+        });
+
+        if (!author) {
+          return { success: true, books: [] };
+        }
+
+        searchCriteria.authorId = author.id;
+      }
+
+      const books = await this.bookRepository.searchBooks(searchCriteria);
+      return { success: true, books };
+    } catch (error) {
+      return { success: false, error: "Failed to search books" };
     }
   }
 }

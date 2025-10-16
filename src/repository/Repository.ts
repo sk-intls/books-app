@@ -1,8 +1,8 @@
 import { Knex } from "knex";
 interface Writer<T> {
   create(item: Omit<T, "id">): Promise<T>;
-  update(id: string, item: Partial<T>): Promise<boolean>;
-  delete(id: string): Promise<boolean>;
+  update(id: number, item: Partial<T>): Promise<boolean>;
+  delete(id: number): Promise<boolean>;
 }
 
 interface Reader<T> {
@@ -28,14 +28,14 @@ export abstract class Repository<T> implements BaseRepository<T> {
       .then((rows) => rows[0]);
   }
 
-  update(id: string, item: Partial<T>): Promise<boolean> {
+  update(id: number, item: Partial<T>): Promise<boolean> {
     return this.qb
       .where({ id })
       .update(item)
       .then((r) => r > 0);
   }
 
-  delete(id: string): Promise<boolean> {
+  delete(id: number): Promise<boolean> {
     return this.qb
       .where({ id })
       .delete()

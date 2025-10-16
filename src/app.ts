@@ -10,6 +10,7 @@ import { AuthService } from "./services/authService";
 import { BookService } from "./services/bookService";
 import { AuthController } from "./controllers/authController";
 import { getJwtSecret } from "./utils/auth";
+import { authenticateToken } from "./middleware/authMiddleware";
 import dotenv from "dotenv";
 import { UserBookService } from "./services/userBookService";
 dotenv.config();
@@ -44,6 +45,9 @@ getJwtSecret();
 
 router.post("/signup", (ctx: Context) => authController.signUp(ctx));
 router.post("/signin", (ctx: Context) => authController.signIn(ctx));
+
+// Protected routes
+router.put("/change-password", authenticateToken, (ctx: Context) => authController.changePassword(ctx));
 
 app.use(router.routes());
 

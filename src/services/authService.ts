@@ -1,5 +1,5 @@
 import { UserRepository } from "../repository/userRepository";
-import { User, LoginData } from "../models/userSchema";
+import { User, LoginData, ChangePasswordData } from "../models/userSchema";
 import {
   hashPassword,
   comparePassword,
@@ -78,6 +78,39 @@ export class AuthService {
       };
     } catch (error) {
       return { success: false, error: "Login failed" };
+    }
+  }
+
+  async changePassword(
+    userId: number,
+    passwordData: ChangePasswordData
+  ): Promise<AuthResult> {
+    try {
+      const user = await this.userRepository.findOneBy({ id: userId });
+      if (!user) {
+        return { success: false, error: "User not found" };
+      }
+
+      const currentPasswordIsValid = await comparePassword(
+        passwordData.currentPassword,
+        user.password
+      );
+      if (!currentPasswordIsValid) {
+        return {
+          success: false,
+          error: "Current password is incorrect",
+        };
+      }
+
+      const hashedNewPassword = await hashPassword(passwordData.newPassword);
+      await this.userRepository.update(userId, { password: hashedNewPassword });
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: "Failed to update password",
+      };
     }
   }
 }

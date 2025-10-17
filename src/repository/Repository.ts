@@ -53,4 +53,8 @@ export abstract class Repository<T> implements BaseRepository<T> {
   findOneBy(criteria: Partial<T>): Promise<T | undefined> {
     return this.qb.where(criteria).first();
   }
+
+  findAll(): Promise<T[]> {
+    return this.qb.select("*");
+  }
 }

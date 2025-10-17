@@ -19,7 +19,7 @@ export class AuthService {
 
   async signUp(userData: Omit<User, "id">): Promise<AuthResult> {
     try {
-      const existingUser = await this.userRepository.findOneBy({
+      const existingUser = await this.userRepository.findOneByWithPassword({
         username: userData.username,
       });
 
@@ -50,7 +50,7 @@ export class AuthService {
 
   async signIn(loginData: LoginData): Promise<AuthResult> {
     try {
-      const user = await this.userRepository.findOneBy({
+      const user = await this.userRepository.findOneByWithPassword({
         username: loginData.username,
       });
 
@@ -86,7 +86,7 @@ export class AuthService {
     passwordData: ChangePasswordData
   ): Promise<AuthResult> {
     try {
-      const user = await this.userRepository.findOneBy({ id: userId });
+      const user = await this.userRepository.findOneByWithPassword({ id: userId });
       if (!user) {
         return { success: false, error: "User not found" };
       }

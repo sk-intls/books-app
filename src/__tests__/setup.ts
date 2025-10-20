@@ -1,0 +1,4 @@
+// Test setup file
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.test' });
+jest.setTimeout(10000);

@@ -62,7 +62,7 @@ describe('UserBookService', () => {
       const bookId = 999;
       const userId = 1;
 
-      mockBookRepo.findOne.mockResolvedValue(undefined);
+      mockBookRepo.findOne.mockResolvedValue(null as any);
       mockUserRepo.findOne.mockResolvedValue({} as any);
 
       const result = await service.addBookToUser(bookId, userId);
@@ -90,7 +90,7 @@ describe('UserBookService', () => {
     it('should return error if user not found', async () => {
       const userId = 999;
 
-      mockUserRepo.findOne.mockResolvedValue(undefined);
+      mockUserRepo.findOne.mockResolvedValue(null as any);
 
       const result = await service.getUserBooks(userId);
 

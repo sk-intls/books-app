@@ -69,5 +69,5 @@ app.use(router.routes());
 
 app.listen(3000, () => {
   console.log(__dirname, __filename);
-  console.log("server is running on port 300");
+  console.log("server is running on port 3000");
 });

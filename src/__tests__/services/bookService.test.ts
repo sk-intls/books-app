@@ -103,7 +103,7 @@ describe('BookService', () => {
       const bookId = 999;
       const updateData = { title: 'Updated Title' };
 
-      mockBookRepo.findOne.mockResolvedValue(undefined);
+      mockBookRepo.findOne.mockResolvedValue(null as any);
 
       const result = await service.updateBook(bookId, updateData);
 
